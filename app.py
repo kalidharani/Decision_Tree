@@ -3,68 +3,63 @@ import pandas as pd
 import joblib
 
 # 1. Load the model
+# Ensure 'pet_adoption_model.pkl' is uploaded to your GitHub repo
 model = joblib.load('pet_adoption_model.pkl')
 
-# Get the exact feature names the model expects
+# Get the exact features the model was trained on
 expected_features = model.feature_names_in_
 
 st.set_page_config(page_title="Pet Adoption Predictor", page_icon="🐾")
-st.title("🐾 Pet Adoption Likelihood Predictor")
+st.title("🐾 Pet Adoption Predictor")
 
+# 2. User Inputs
 col1, col2 = st.columns(2)
 
 with col1:
-    age_months = st.number_input("Age (Months)", min_value=1, max_value=240, value=12)
-    weight_kg = st.number_input("Weight (kg)", min_value=0.1, max_value=100.0, value=5.0)
-    timein_shelter = st.number_input("Time in Shelter (Days)", min_value=1, value=30)
-    adoption_fee = st.number_input("Adoption Fee ($)", min_value=0, value=100)
+    age = st.number_input("Age (Months)", 1, 240, 12)
+    weight = st.number_input("Weight (kg)", 0.1, 100.0, 5.0)
+    shelter_time = st.number_input("Days in Shelter", 1, 1000, 30)
+    fee = st.number_input("Adoption Fee ($)", 0, 1000, 100)
     pet_type = st.selectbox("Pet Type", ["Dog", "Cat", "Bird", "Rabbit"])
 
 with col2:
-    # Added Breed selection to fix the error
-    breed = st.selectbox("Breed", ["Labrador", "Parakeet", "Persian", "Poodle", "Rabbit", "Golden Retriever", "Siamese", "Hamster"])
+    # Breeds must match the ones in your training CSV exactly
+    breed = st.selectbox("Breed", ["Labrador", "Poodle", "Golden Retriever", "Persian", "Siamese", "Parakeet", "Rabbit", "Hamster"])
     size = st.selectbox("Size", ["Small", "Medium", "Large"])
-    health = st.selectbox("Health Condition", ["Healthy", "Minor Issues", "Critical"])
-    vaccinated = st.selectbox("Vaccinated?", ["Yes", "No"])
-    prev_owner = st.selectbox("Has Previous Owner?", ["Yes", "No"])
-    color = st.selectbox("Color", ["Brown", "Gray", "Orange", "White", "Black"])
+    health = st.selectbox("Health", ["Healthy", "Minor Issues", "Critical"])
+    vac = st.radio("Vaccinated?", ["Yes", "No"])
+    prev = st.radio("Previous Owner?", ["Yes", "No"])
+    color = st.selectbox("Color", ["Black", "White", "Brown", "Gray", "Orange"])
 
-# --- DATA PREPROCESSING ---
-# Mapping numerical values
+# 3. Preprocessing logic
 size_map = {"Small": 0, "Medium": 1, "Large": 2}
 health_map = {"Healthy": 0, "Minor Issues": 1, "Critical": 2}
 
-# Create a dictionary with ALL features set to 0 initially
-input_data = {feat: 0 for feat in expected_features}
+# Start with a dictionary of all zeros for every expected feature
+input_dict = {feat: 0 for feat in expected_features}
 
-# Fill in the numerical/binary features
-input_data['age_months'] = age_months
-input_data['weight_kg'] = weight_kg
-input_data['timein_shelter_days'] = timein_shelter
-input_data['adoption_fee'] = adoption_fee
-input_data['size'] = size_map[size]
-input_data['health_condition'] = health_map[health]
-input_data['vaccinated'] = 1 if vaccinated == "Yes" else 0
-input_data['previous_owner'] = 1 if prev_owner == "Yes" else 0
+# Fill numerical/binary fields
+input_dict['age_months'] = age
+input_dict['weight_kg'] = weight
+input_dict['timein_shelter_days'] = shelter_time
+input_dict['adoption_fee'] = fee
+input_dict['size'] = size_map[size]
+input_dict['health_condition'] = health_map[health]
+input_dict['vaccinated'] = 1 if vac == "Yes" else 0
+input_dict['previous_owner'] = 1 if prev == "Yes" else 0
 
-# Fill in One-Hot Encoded features (set the selected ones to 1)
-if f"pet_type_{pet_type}" in input_data:
-    input_data[f"pet_type_{pet_type}"] = 1
+# Handle One-Hot Encoding: Set the specific category column to 1
+if f"pet_type_{pet_type}" in input_dict: input_dict[f"pet_type_{pet_type}"] = 1
+if f"breed_{breed}" in input_dict: input_dict[f"breed_{breed}"] = 1
+if f"color_{color}" in input_dict: input_dict[f"color_{color}"] = 1
 
-if f"breed_{breed}" in input_data:
-    input_data[f"breed_{breed}"] = 1
+# Convert to DataFrame and reorder columns to match the model's training
+input_df = pd.DataFrame([input_dict])[expected_features]
 
-if f"color_{color}" in input_data:
-    input_data[f"color_{color}"] = 1
-
-# Convert to DataFrame and ensure correct column order
-input_df = pd.DataFrame([input_data])[expected_features]
-
-if st.button("Predict Adoption Likelihood"):
+# 4. Prediction
+if st.button("Predict"):
     prediction = model.predict(input_df)
-    
-    st.divider()
     if prediction[0] == 1:
-        st.success("🌟 This pet is **LIKELY** to be adopted!")
+        st.success("✨ High Likelihood of Adoption!")
     else:
-        st.warning("⏳ This pet is **UNLIKELY** to be adopted soon.")
+        st.info("⌛ Lower Likelihood of Adoption.")
